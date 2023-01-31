@@ -18,6 +18,16 @@ class TetroType(Enum):
     T = 7
     SHADOW = 8
 
+class control(Enum):
+    ROTATE = 1
+    ROTATE_COUNTER = 2
+    LEFT = 3
+    RIGHT = 4
+    HARD = 5
+    DOWN = 6
+    HOLD = 7
+    RESTART = 8
+
 class Tetromino:
     
     rotations = {
@@ -67,6 +77,16 @@ class Tetris:
     PRESSING_BOUND = 300
     fps = 10000
     screen_size = (400, 500)
+    move_keys = {
+        control.ROTATE: pygame.K_UP,
+        control.ROTATE_COUNTER: pygame.K_RCTRL,
+        control.LEFT: pygame.K_LEFT,
+        control.RIGHT: pygame.K_RIGHT,
+        control.HARD: pygame.K_SPACE,
+        control.DOWN: pygame.K_DOWN,
+        control.HOLD: pygame.K_RSHIFT,
+        control.RESTART: pygame.K_ESCAPE
+    }
     
     score_table = {
         'Double' : 1,
@@ -122,15 +142,15 @@ class Tetris:
             self.screen = pygame.display.set_mode(self.screen_size)
         
         self.start_time = {
-            pygame.K_DOWN: pygame.time.get_ticks(),
-            pygame.K_LEFT: pygame.time.get_ticks(),
-            pygame.K_RIGHT: pygame.time.get_ticks()
+            self.move_keys[control.DOWN]: pygame.time.get_ticks(),
+            self.move_keys[control.LEFT]: pygame.time.get_ticks(),
+            self.move_keys[control.RIGHT]: pygame.time.get_ticks()
         }
 
         self.pressing = {
-            pygame.K_DOWN: False,
-            pygame.K_LEFT: False,
-            pygame.K_RIGHT: False
+            self.move_keys[control.DOWN]: False,
+            self.move_keys[control.LEFT]: False,
+            self.move_keys[control.RIGHT]: False
         }
         self.running = True
         
@@ -387,7 +407,7 @@ class Tetris:
             
         keys = pygame.key.get_pressed()
     
-        for key in [pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT]:
+        for key in self.start_time.keys():
             if keys[key]:
                 current_time = pygame.time.get_ticks()
                 if current_time - self.start_time[key] > self.PRESSING_BOUND:
@@ -395,11 +415,11 @@ class Tetris:
             else:
                 self.start_time[key] = pygame.time.get_ticks()
             
-        if self.pressing[pygame.K_DOWN]:
+        if self.pressing[self.move_keys[control.DOWN]]:
             self.down()
-        if self.pressing[pygame.K_LEFT]:
+        if self.pressing[self.move_keys[control.LEFT]]:
             self.move('left')
-        if self.pressing[pygame.K_RIGHT]:
+        if self.pressing[self.move_keys[control.RIGHT]]:
             self.move('right')            
         
         for event in pygame.event.get():
@@ -407,34 +427,31 @@ class Tetris:
                 self.running = False
             elif event.type == pygame.KEYDOWN:
                 if self.state in ['gameover', 'timeup'] :
-                    if event.key == pygame.K_ESCAPE:
+                    if event.key == self.move_keys[control.RESTART]:
                         self.__init__(self.display)
                 else:
-                    if event.key == pygame.K_UP:
+                    if event.key == self.move_keys[control.ROTATE]:
                         self.rotate(1)
-                    if event.key == pygame.K_RCTRL:
+                    if event.key == self.move_keys[control.ROTATE_COUNTER]:
                         self.rotate(-1)
-                    if event.key == pygame.K_SPACE:
+                    if event.key == self.move_keys[control.HARD]:
                         self.hard_drop()
-                    if event.key == pygame.K_DOWN:
+                    if event.key == self.move_keys[control.DOWN]:
                         self.down()
-                    if event.key == pygame.K_LEFT:
+                    if event.key == self.move_keys[control.LEFT]:
                         self.move('Left')
-                    if event.key == pygame.K_RIGHT:
+                    if event.key == self.move_keys[control.RIGHT]:
                         self.move('right')
-                    if event.key == pygame.K_RSHIFT:
+                    if event.key == self.move_keys[control.HOLD]:
                         if not self.used_held:
                             self.hold()
                             self.used_held = True
-                    if event.key == pygame.K_ESCAPE:
+                    if event.key == self.move_keys[control.RESTART]:
                         self.__init__(self.display)
             elif event.type == pygame.KEYUP:
-                if event.key == pygame.K_DOWN:
-                    self.pressing[pygame.K_DOWN] = False
-                elif event.key == pygame.K_LEFT:
-                    self.pressing[pygame.K_LEFT] = False
-                elif event.key == pygame.K_RIGHT:
-                    self.pressing[pygame.K_RIGHT] = False
+                for key in self.pressing.keys():
+                    if event.key == key:
+                        self.pressing[key] = False
                     
         if self.state not in ['gameover', 'timeup']:
             self.remaining_time -= self.clock.tick(self.fps)
@@ -541,6 +558,7 @@ class Tetris:
 def main():
     pygame.init()
     game = Tetris()
+    game.update_ui()
     while game.running:
         game.update_tetro()
         game.game_step()
