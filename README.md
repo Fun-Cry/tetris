@@ -1,6 +1,6 @@
 # Tetris
 
-A simple tetris game that aims to restore the classic Tetris Battle gameplay
+A simple tetris game that aims to restore the classic Tetris Friends gameplay
 
 ![](screenshot.png)
 
@@ -29,3 +29,8 @@ The game is controlled using the following keyboard controls:
 - **Rotate clockwise**: Up arrow key
 - **Rotate counterclockwise**: Right Ctrl key
 - **Hold**: Right Shift key
+
+## Reference
+
+- **Fundamental structure**: https://levelup.gitconnected.com/writing-tetris-in-python-2a16bddb5318
+- **Rules**: https://tetris.fandom.com/wiki/Tetris_Friends
