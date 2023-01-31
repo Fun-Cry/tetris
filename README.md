@@ -23,9 +23,9 @@ python tetris.py
 
 The game is controlled using the following keyboard controls:
 
-- Move left: Left arrow key
-- Move right: Right arrow key
-- Move down: Down arrow key
-- Rotate clockwise: Up arrow key
-- Rotate counterclockwise: Right Ctrl key
-- Hold: Right Shift key
+- **Move left**: Left arrow key
+- **Move right**: Right arrow key
+- **Move down**: Down arrow key
+- **Rotate clockwise**: Up arrow key
+- **Rotate counterclockwise**: Right Ctrl key
+- **Hold**: Right Shift key
