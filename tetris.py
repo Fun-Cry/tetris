@@ -67,18 +67,18 @@ class Tetris:
     PRESSING_BOUND = 300
     fps = 10000
     score_table = {
-        "Double" : 1,
-        "Triple" : 2,
-        "Tetris" : 4,
-        "TSM" : 1,
-        "TSS" : 2,
-        "TSD" : 4,
-        "TST" : 6,
-        "b2b Tetris" : 6,
-        "b2b TSM" : 2,
-        "b2b TSS" : 3,
-        "b2b TSD" : 6,
-        "b2b TST" : 9,
+        'Double' : 1,
+        'Triple' : 2,
+        'Tetris' : 4,
+        'TSM' : 1,
+        'TSS' : 2,
+        'TSD' : 4,
+        'TST' : 6,
+        'b2b Tetris' : 6,
+        'b2b TSM' : 2,
+        'b2b TSS' : 3,
+        'b2b TSD' : 6,
+        'b2b TST' : 9,
     }
     
     wall_kick = [
@@ -109,7 +109,7 @@ class Tetris:
         self.held = None
         self.shadow = None
         self.field = deque()
-        self.state = "start"
+        self.state = 'start'
         self.head, self.tail = self.seven_bag()
         self.remaining_time = 120000
         self.counter = 0
@@ -185,40 +185,39 @@ class Tetris:
                 if self.last_kick == 4:
                     mini = False
                     
-        # Tetris
         if cleared_lines == 4:
             if self.b2b:
-                self.score += self.score_table["b2b Tetris"]
+                self.score += self.score_table['b2b Tetris']
             else:
-                self.score += self.score_table["Tetris"]
+                self.score += self.score_table['Tetris']
         elif cleared_lines == 3:
             if T_spin:
                 if self.b2b:
-                    self.score += self.score_table["b2b TST"]
+                    self.score += self.score_table['b2b TST']
                 else:
-                    self.score += self.score_table["TST"]
+                    self.score += self.score_table['TST']
             else:
-                self.score += self.score_table["Triple"]
+                self.score += self.score_table['Triple']
         elif cleared_lines == 2:
             if T_spin:
                 if self.b2b:
-                    self.score += self.score_table["b2b TSD"]
+                    self.score += self.score_table['b2b TSD']
                 else:
-                    self.score += self.score_table["TSD"]
+                    self.score += self.score_table['TSD']
             else:
-                self.score += self.score_table["Double"]
+                self.score += self.score_table['Double']
         elif cleared_lines == 1:
             if T_spin:
                 if mini:
                     if self.b2b:
-                        self.score += self.score_table["b2b TSM"]
+                        self.score += self.score_table['b2b TSM']
                     else:
-                        self.score += self.score_table["TSM"]
+                        self.score += self.score_table['TSM']
                 else:
                     if self.b2b:
-                        self.score += self.score_table["b2b TSS"]
+                        self.score += self.score_table['b2b TSS']
                     else:
-                        self.score += self.score_table["TSS"]
+                        self.score += self.score_table['TSS']
                         
         if cleared_lines == 4 or T_spin:
             self.b2b = True
@@ -244,7 +243,7 @@ class Tetris:
             for j in range(4):
                 if i * 4 + j in self.figure.image():
                     if i + self.figure.y < 2:
-                        self.state = "gameover"
+                        self.state = 'gameover'
                     self.field[i + self.figure.y][j + self.figure.x] = self.figure.type
         
         def calc_loc_val(y, x):
@@ -292,7 +291,7 @@ class Tetris:
     def move(self, dir):
         if self.figure:
             temp = self.figure.x
-            add = 1 if dir == "right" else -1
+            add = 1 if dir == 'right' else -1
             self.figure.x += add
             if self.intersects():
                 self.figure.x = temp
@@ -376,7 +375,7 @@ class Tetris:
         
         self.counter += 1
         if self.counter % (self.fps/10)  == 0:
-            if self.state == "start":
+            if self.state == 'start':
                 self.down()
             
         keys = pygame.key.get_pressed()
@@ -400,7 +399,7 @@ class Tetris:
             if event.type == pygame.QUIT:
                 self.running = False
             elif event.type == pygame.KEYDOWN:
-                if self.state == 'gameover':
+                if self.state in ['gameover', 'timeup'] :
                     if event.key == pygame.K_ESCAPE:
                         self.__init__(self.screen)
                 else:
@@ -413,9 +412,9 @@ class Tetris:
                     if event.key == pygame.K_DOWN:
                         self.down()
                     if event.key == pygame.K_LEFT:
-                        self.move("Left")
+                        self.move('Left')
                     if event.key == pygame.K_RIGHT:
-                        self.move("right")
+                        self.move('right')
                     if event.key == pygame.K_RSHIFT:
                         if not self.used_held:
                             self.hold()
@@ -430,10 +429,10 @@ class Tetris:
                 elif event.key == pygame.K_RIGHT:
                     self.pressing[pygame.K_RIGHT] = False
                     
-        if self.state not in ["gameover", "timeup"]:
+        if self.state not in ['gameover', 'timeup']:
             self.remaining_time -= self.clock.tick(self.fps)
         if self.remaining_time <= 0:
-            self.state = "timeup"
+            self.state = 'timeup'
                     
     def draw_grid(self):
         for i in range(2, self.height):
@@ -448,7 +447,7 @@ class Tetris:
             for j in range(4):
                 p = i * 4 + j
                 if p in tetro.image():
-                    if size == self.next_zoom or (i + tetro.y >= 2 and self.state not in  ["gameover", "timeup"]):
+                    if size == self.next_zoom or (i + tetro.y >= 2 and self.state not in  ['gameover', 'timeup']):
                         pygame.draw.rect(self.screen, tetro.color,
                                         [x + size * j, y + size * i, size - 1, size - 1])
                         if grid:
@@ -488,27 +487,28 @@ class Tetris:
         
     def update_text(self):
         font = pygame.font.SysFont('Calibri', 25, True, False)
-        text = font.render("Score: " + str(self.score), True, BLACK)
+        text = font.render('Score: ' + str(self.score), True, BLACK)
         
         minutes, seconds = (self.remaining_time / 1000) / 60, (self.remaining_time / 1000) % 60
-        text_time = font.render("{:02d}:{:02d}".format(int(minutes), int(seconds)), True, BLACK)
+        text_time = font.render('{:02d}:{:02d}'.format(int(minutes), int(seconds)), True, BLACK)
         text_time_rect = text_time.get_rect()
         text_time_rect.centerx = self.screen_size[0] / 2
         
         font_over = pygame.font.SysFont('Calibri', 65, True, False)
-        text_game_over = font_over.render("Game Over", True, BLACK)
+        text_game_over = font_over.render('Game Over', True, BLACK)
 
         self.screen.blit(text, [10, 0])
         self.screen.blit(text_time, text_time_rect)
         
-        if self.state in ["gameover", "timeup"]:
-            for i in range(4):
-                for j in range(4):
-                    if i * 4 + j in self.figure.image():
-                        self.field[i + self.figure.y][j + self.figure.x] = self.figure.type
-                        self.field[i + self.shadow.y][j + self.shadow.x] = TetroType.SHADOW
+        if self.state in ['gameover', 'timeup']:
+            if self.figure:
+                for i in range(4):
+                    for j in range(4):
+                        if i * 4 + j in self.figure.image():
+                            self.field[i + self.figure.y][j + self.figure.x] = self.figure.type
+                            self.field[i + self.shadow.y][j + self.shadow.x] = TetroType.SHADOW
                         
-            finish_text = text_game_over if self.state == "gameover" else text
+            finish_text = text_game_over if self.state == 'gameover' else text
             self.finish(finish_text, self.screen_size)
         pygame.display.flip()
         
