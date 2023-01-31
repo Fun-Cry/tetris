@@ -66,6 +66,8 @@ class Tetris:
     next_zoom = zoom / 2
     PRESSING_BOUND = 300
     fps = 10000
+    screen_size = (400, 500)
+    
     score_table = {
         'Double' : 1,
         'Triple' : 2,
@@ -97,7 +99,7 @@ class Tetris:
     
     combo_table = [0, 1, 1, 2, 2, 3, 3, 4]
     
-    def __init__(self, screen):
+    def __init__(self, display=True):
         self.clock = pygame.time.Clock()
         self.used_held = False
         self.last_move = None
@@ -113,8 +115,11 @@ class Tetris:
         self.head, self.tail = self.seven_bag()
         self.remaining_time = 120000
         self.counter = 0
-        self.screen = screen
-        self.screen_size = screen.get_size()
+        self.screen = None
+        self.display = display
+        
+        if self.display:
+            self.screen = pygame.display.set_mode(self.screen_size)
         
         self.start_time = {
             pygame.K_DOWN: pygame.time.get_ticks(),
@@ -134,10 +139,6 @@ class Tetris:
             for j in range(self.width):
                 new_line.append(0)
             self.field.append(new_line)
-    
-    def new_figure(self, type):
-        self.figure = Tetromino(type)
-        # self.shadow = Tetromino(type, True)
         
     def intersects(self, shadow=False):
         item = self.shadow if shadow else self.figure
@@ -245,6 +246,12 @@ class Tetris:
                     if i + self.figure.y < 2:
                         self.state = 'gameover'
                     self.field[i + self.figure.y][j + self.figure.x] = self.figure.type
+                    
+        for key in self.pressing:
+            self.pressing[key] = False
+            
+        for key in self.start_time:
+            self.start_time[key] = pygame.time.get_ticks()
         
         def calc_loc_val(y, x):
             if x >= self.width or x < 0:
@@ -401,7 +408,7 @@ class Tetris:
             elif event.type == pygame.KEYDOWN:
                 if self.state in ['gameover', 'timeup'] :
                     if event.key == pygame.K_ESCAPE:
-                        self.__init__(self.screen)
+                        self.__init__(self.display)
                 else:
                     if event.key == pygame.K_UP:
                         self.rotate(1)
@@ -420,7 +427,7 @@ class Tetris:
                             self.hold()
                             self.used_held = True
                     if event.key == pygame.K_ESCAPE:
-                        self.__init__(self.screen)
+                        self.__init__(self.display)
             elif event.type == pygame.KEYUP:
                 if event.key == pygame.K_DOWN:
                     self.pressing[pygame.K_DOWN] = False
@@ -459,7 +466,6 @@ class Tetris:
         start_grid_y = self.y + self.zoom * 2
         grid_num = 1 if type == 'h' else 5
         temp = self.held if type == 'h' else self.head
-        
         
         for n in range(grid_num):
             pygame.draw.rect(self.screen, GRAY,
@@ -534,10 +540,7 @@ class Tetris:
 
 def main():
     pygame.init()
-    screen_size = (400, 500)
-    screen = pygame.display.set_mode(screen_size)
-    game = Tetris(screen)
-    game.update_ui()
+    game = Tetris()
     while game.running:
         game.update_tetro()
         game.game_step()
