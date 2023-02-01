@@ -9,7 +9,7 @@ A simple tetris game that aims to restore the classic Tetris Friends gameplay
 1. Install the environment:
 
 ```bash
-conda create -f environment.yaml
+conda env create -f environment.yaml
 conda activate tetris
 ```
 
