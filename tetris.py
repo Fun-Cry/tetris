@@ -19,14 +19,25 @@ class TetroType(Enum):
     SHADOW = 8
 
 class control(Enum):
-    ROTATE = 1
-    ROTATE_COUNTER = 2
+    RIGHT_ROTATE = 1
+    LEFT_ROTATE = 2
     LEFT = 3
     RIGHT = 4
     HARD = 5
     DOWN = 6
     HOLD = 7
     RESTART = 8
+    
+class AI_Move(Enum):
+    LONG_LEFT = 1
+    LONG_RIGHT = 2
+    RIGHT_ROTATE = 3
+    LEFT_ROTATE = 4
+    LEFT = 5
+    RIGHT = 6
+    HARD_DROP = 7
+    SOFT_DROP = 8
+    HOLD = 9
 
 class Tetromino:
     
@@ -51,20 +62,42 @@ class Tetromino:
         TetroType.SHADOW : GRAY
     }
     
-    def __init__(self, type, is_shadow=False):
-        self.type = type
+    left_most_x = {
+        TetroType.I : [0, 2, 0, 1],
+        TetroType.O : [1],
+        TetroType.S : [0, 1, 0, 0],
+    }
+
+    width = {
+        TetroType.I : [4, 1, 4, 1],
+        TetroType.O : [2],
+        TetroType.S : [3, 2, 3, 2],
+    }
+    
+    def __init__(self, type_, is_shadow=False):
+        self.type_ = type_
         self.is_shadow = is_shadow
-        self.color = GRAY if is_shadow else self.colors[self.type] 
+        self.color = GRAY if is_shadow else self.colors[self.type_] 
         self.rotation = 0
         self.x = 3
         self.y = 0
+        self.cur_x = 3
+        self.max_x = 9
         self.next = None
+        self._update_cur_max()
+        
     
     def image(self):
-        return self.rotations[self.type][self.rotation]
+        return self.rotations[self.type_][self.rotation]
     
     def rotate(self, rotation_type):
-        self.rotation = (self.rotation + rotation_type) % len(self.rotations[self.type])
+        self.rotation = (self.rotation + rotation_type) % len(self.rotations[self.type_])
+        self._update_cur_max()
+        
+    def _update_cur_max(self):
+        type_ = self.type_ if self.type_ in [TetroType.I, TetroType.O] else TetroType.S
+        self.cur_x =  self.x + self.left_most_x[type_][self.rotation]
+        self.max_x = 10 - self.width[type_][self.rotation]
 
             
 class Tetris:
@@ -78,8 +111,8 @@ class Tetris:
     fps = 10000
     screen_size = (400, 500)
     move_keys = {
-        control.ROTATE: pygame.K_UP,
-        control.ROTATE_COUNTER: pygame.K_RCTRL,
+        control.RIGHT_ROTATE: pygame.K_UP,
+        control.LEFT_ROTATE: pygame.K_RCTRL,
         control.LEFT: pygame.K_LEFT,
         control.RIGHT: pygame.K_RIGHT,
         control.HARD: pygame.K_SPACE,
@@ -119,7 +152,7 @@ class Tetris:
     
     combo_table = [0, 1, 1, 2, 2, 3, 3, 4]
     
-    def __init__(self, display=True):
+    def __init__(self, display=True, AI_player=False):
         self.clock = pygame.time.Clock()
         self.used_held = False
         self.last_move = None
@@ -132,15 +165,20 @@ class Tetris:
         self.shadow = None
         self.field = deque()
         self.state = 'start'
-        self.head, self.tail = self.seven_bag()
+        self.head, self.tail = self._seven_bag()
         self.remaining_time = 120000
         self.counter = 0
         self.screen = None
         self.display = display
+        self.player = None
+        self.step = self.game_step
         
         if self.display:
             self.screen = pygame.display.set_mode(self.screen_size)
-        
+            
+        if AI_player:
+            self.player = Tetris_AI()
+            self.step = self.game_step_AI
         self.start_time = {
             self.move_keys[control.DOWN]: pygame.time.get_ticks(),
             self.move_keys[control.LEFT]: pygame.time.get_ticks(),
@@ -160,7 +198,7 @@ class Tetris:
                 new_line.append(0)
             self.field.append(new_line)
         
-    def intersects(self, shadow=False):
+    def _intersects(self, shadow=False):
         item = self.shadow if shadow else self.figure
         for i in range(4):
             for j in range(4):
@@ -173,7 +211,7 @@ class Tetris:
                         return True
         return False
 
-    def clear(self):
+    def _clear(self):
         cleared = []
         # check which lines are cleared
         for line in range(self.height - 1, -1, -1):
@@ -189,7 +227,7 @@ class Tetris:
             self.field.appendleft([0 for j in range(self.width)])
         return len(cleared)
             
-    def calc_score(self, cleared_lines, check_list):
+    def _calc_score(self, cleared_lines, check_list):
         T_spin = False
         mini = False
         if self.last_move == 'r' and len(check_list) != 0:
@@ -259,13 +297,13 @@ class Tetris:
         if perfect:
             self.score += 10
         
-    def freeze(self):
+    def _freeze(self):
         for i in range(4):
             for j in range(4):
                 if i * 4 + j in self.figure.image():
                     if i + self.figure.y < 2:
                         self.state = 'gameover'
-                    self.field[i + self.figure.y][j + self.figure.x] = self.figure.type
+                    self.field[i + self.figure.y][j + self.figure.x] = self.figure.type_
                     
         for key in self.pressing:
             self.pressing[key] = False
@@ -282,51 +320,51 @@ class Tetris:
                 return self.field[y][x]
             
         check_list = []
-        if self.figure.type == TetroType.T:
+        if self.figure.type_ == TetroType.T:
             front_pos = [(0, 0), (0, 2), (2, 2), (2, 0), (0, 0)]
             back_pos = [(2, 2), (2, 0), (0, 0), (0, 2), (2, 2)]
             for pos_list in [front_pos, back_pos]:
                 for i in range(2):
                     check_list.append(calc_loc_val(self.figure.y + pos_list[self.figure.rotation + i][0], self.figure.x + pos_list[self.figure.rotation + i][1]))
                 
-        cleared_lines = self.clear()
+        cleared_lines = self._clear()
         if cleared_lines == 0:
             self.combo = -1
         else:
             self.combo += 1
-            self.calc_score(cleared_lines, check_list)
+            self._calc_score(cleared_lines, check_list)
         
         self.used_held = False
         self.figure = None
     
-    def hard_drop(self):
+    def _hard_drop(self):
         if self.figure.y < 0:
             self.figure.y = 0
-        while not self.intersects():
+        while not self._intersects():
             self.figure.y += 1
         self.figure.y -= 1
-        self.freeze()
+        self._freeze()
         
-    def down(self):
+    def _down(self):
         prev_move = self.last_move
         self.last_move = 'd'
         self.figure.y += 1
-        if self.intersects():
+        if self._intersects():
             self.figure.y -= 1
             self.last_move = prev_move
         
-    def move(self, dir):
+    def _move(self, dir):
         if self.figure:
             temp = self.figure.x
             add = 1 if dir == 'right' else -1
             self.figure.x += add
-            if self.intersects():
+            if self._intersects():
                 self.figure.x = temp
-        self.update_shadow()
+        self._update_shadow()
         self.last_move = 'm'
     
-    def kick(self, ori, new, type):
-        table = self.I_wall_kick if type == TetroType.I else self.wall_kick
+    def _kick(self, ori, new, type_):
+        table = self.I_wall_kick if type_ == TetroType.I else self.wall_kick
         check_list = []
         for i in range(5):
             check_list.append(tuple((table[ori][i][0] - table[new][i][0],
@@ -335,7 +373,7 @@ class Tetris:
         for i, pos in enumerate(check_list):
             self.figure.x += pos[0]
             self.figure.y += pos[1]
-            if self.intersects():
+            if self._intersects():
                 self.figure.x, self.figure.y = original_pos
                 continue
             else:
@@ -343,37 +381,37 @@ class Tetris:
                 return True
         return False
             
-    def rotate(self, type):
+    def _rotate(self, type_: int):
         original_rotate = deepcopy(self.figure.rotation)
-        self.figure.rotate(type)
+        self.figure.rotate(type_)
         new_rotate = deepcopy(self.figure.rotation)
-        if not self.kick(original_rotate, new_rotate, type):
-            self.figure.rotate(type * -1)
-        self.update_shadow()
+        if not self._kick(original_rotate, new_rotate, type_):
+            self.figure.rotate(type_ * -1)
+        self._update_shadow()
         self.last_move = 'r'
         
-    def make_shadow(self):
+    def _make_shadow(self):
         self.shadow = deepcopy(self.figure)
         if self.shadow.y < 0:
             self.shadow.y = 0
         self.shadow.color = GRAY
         self.shadow.is_shadow = True
         
-    def update_shadow(self):
-        self.make_shadow()
-        while not self.intersects(shadow=True):
+    def _update_shadow(self):
+        self._make_shadow()
+        while not self._intersects(shadow=True):
             self.shadow.y += 1
         self.shadow.y -= 1
 
-    def hold(self):
-        temp = Tetromino(self.figure.type)
+    def _hold(self):
+        temp = Tetromino(self.figure.type_)
         self.figure = self.held
         self.held = temp
         if self.figure:
-            self.update_shadow()
+            self._update_shadow()
         self.last_move = None
         
-    def seven_bag(self):
+    def _seven_bag(self):
         bag = [
             TetroType.I,
             TetroType.J, 
@@ -389,22 +427,31 @@ class Tetris:
             new_figures[i].next = new_figures[i + 1]
         return new_figures[0], new_figures[6]
         
-    def update_tetro(self):
+    def _update_tetro(self):
         if not self.head:
-            self.head, self.tail = self.seven_bag()
+            self.head, self.tail = self._seven_bag()
 
         if self.figure is None and self.state not in ['gameover', 'timeup']:
             self.figure = self.head
             self.head = self.head.next
-            self.update_shadow()
-            
-    def game_step(self):
+            self._update_shadow()
+          
+    def _update_counter(self):
         
         self.counter += 1
         if self.counter % (self.fps/10)  == 0:
             if self.state == 'start':
-                self.down()
+                self._down()
+                
+        if self.state not in ['gameover', 'timeup']:
+            self.remaining_time -= self.clock.tick(self.fps)
+        if self.remaining_time <= 0:
+            self.state = 'timeup'
+          
             
+    def game_step(self):
+        self._update_tetro()
+        self._update_counter()
         keys = pygame.key.get_pressed()
     
         for key in self.start_time.keys():
@@ -416,12 +463,12 @@ class Tetris:
                 self.start_time[key] = pygame.time.get_ticks()
             
         if self.pressing[self.move_keys[control.DOWN]]:
-            self.down()
+            self._down()
         if self.pressing[self.move_keys[control.LEFT]]:
-            self.move('left')
+            self._move('left')
         if self.pressing[self.move_keys[control.RIGHT]]:
-            self.move('right')            
-        
+            self._move('right')            
+            
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
@@ -430,21 +477,21 @@ class Tetris:
                     if event.key == self.move_keys[control.RESTART]:
                         self.__init__(self.display)
                 else:
-                    if event.key == self.move_keys[control.ROTATE]:
-                        self.rotate(1)
-                    if event.key == self.move_keys[control.ROTATE_COUNTER]:
-                        self.rotate(-1)
+                    if event.key == self.move_keys[control.RIGHT_ROTATE]:
+                        self._rotate(1)
+                    if event.key == self.move_keys[control.LEFT_ROTATE]:
+                        self._rotate(-1)
                     if event.key == self.move_keys[control.HARD]:
-                        self.hard_drop()
+                        self._hard_drop()
                     if event.key == self.move_keys[control.DOWN]:
-                        self.down()
+                        self._down()
                     if event.key == self.move_keys[control.LEFT]:
-                        self.move('Left')
+                        self._move('Left')
                     if event.key == self.move_keys[control.RIGHT]:
-                        self.move('right')
+                        self._move('right')
                     if event.key == self.move_keys[control.HOLD]:
                         if not self.used_held:
-                            self.hold()
+                            self._hold()
                             self.used_held = True
                     if event.key == self.move_keys[control.RESTART]:
                         self.__init__(self.display)
@@ -452,13 +499,48 @@ class Tetris:
                 for key in self.pressing.keys():
                     if event.key == key:
                         self.pressing[key] = False
+                        
+        if self.display:
+            self._update_ui()
                     
-        if self.state not in ['gameover', 'timeup']:
-            self.remaining_time -= self.clock.tick(self.fps)
-        if self.remaining_time <= 0:
-            self.state = 'timeup'
-                    
-    def draw_grid(self):
+            
+    def game_step_AI(self, move):
+        self._update_tetro()
+        self._update_counter()
+        for event in move:
+            cur_x = self.figure.cur_x
+            max_x = self.figure.max_x
+            if event == AI_Move.LONG_LEFT:
+                while cur_x != 0:
+                    self._move('left')
+                    cur_x -= 1
+            elif event == AI_Move.LONG_RIGHT:
+                while cur_x != max_x:
+                    self._move('right')
+                    cur_x += 1
+            elif event == AI_Move.LEFT_ROTATE:
+                self._rotate(-1)
+            elif event == AI_Move.RIGHT_ROTATE:
+                self._rotate(1)
+            elif event == AI_Move.LEFT:
+                self._move('left')
+            elif event == AI_Move.RIGHT:
+                self._move('right')
+            elif event == AI_Move.HARD_DROP:
+                self._hard_drop()
+            elif event == AI_Move.SOFT_DROP:
+                cur_y = self.figure.y
+                prev_y = self.height - 1
+                while cur_y != prev_y:
+                    prev_y = cur_y
+                    self._down()
+            elif event == AI_Move.HOLD:
+                self._hold()
+                
+        if self.display:
+            self._update_ui()
+                
+    def _draw_grid(self):
         for i in range(2, self.height):
             for j in range(self.width):
                 if self.field[i][j] != 0:
@@ -466,7 +548,7 @@ class Tetris:
                                     [self.x + self.zoom * j + 1, self.y + self.zoom * i + 1, self.zoom - 2, self.zoom - 2])                
                 pygame.draw.rect(self.screen, GRAY, [self.x + self.zoom * j, self.y + self.zoom * i, self.zoom, self.zoom], 1)
 
-    def draw_tetro(self, tetro, x, y, grid: bool, size):
+    def _draw_tetro(self, tetro, x, y, grid: bool, size):
         for i in range(4):
             for j in range(4):
                 p = i * 4 + j
@@ -478,37 +560,37 @@ class Tetris:
                             pygame.draw.rect(self.screen, BLACK,
                                             [x + size * j, y + size * i, size, size], 1)
         
-    def draw_small_grid(self, type):
-        start_grid_x = self.x - self.next_zoom * 6 if type == 'h' else self.x + self.zoom * self.width
+    def _draw_small_grid(self, type_):
+        start_grid_x = self.x - self.next_zoom * 6 if type_ == 'h' else self.x + self.zoom * self.width
         start_grid_y = self.y + self.zoom * 2
-        grid_num = 1 if type == 'h' else 5
-        temp = self.held if type == 'h' else self.head
+        grid_num = 1 if type_ == 'h' else 5
+        temp = self.held if type_ == 'h' else self.head
         
         for n in range(grid_num):
             pygame.draw.rect(self.screen, GRAY,
                         [start_grid_x, start_grid_y + self.next_zoom * 6 * n, self.next_zoom * 6, self.next_zoom * 6], 1)
-            if type == 'h' and not self.held:
+            if type_ == 'h' and not self.held:
                 break
             x_edge = 1.5
             y_edge = 2
-            if temp.type == TetroType.I:
+            if temp.type_ == TetroType.I:
                 x_edge = 1
                 y_edge = 1.5
-            elif temp.type == TetroType.O:
+            elif temp.type_ == TetroType.O:
                 x_edge = 1
             
             start_tetro_x = start_grid_x + self.next_zoom * x_edge
             start_tetro_y = start_grid_y + self.next_zoom * 6 * n + self.next_zoom * y_edge
-            self.draw_tetro(temp, start_tetro_x, start_tetro_y, True, self.next_zoom)
+            self._draw_tetro(temp, start_tetro_x, start_tetro_y, True, self.next_zoom)
             temp = temp.next
             
-            if type == 'n' and not temp:
-                new_head, new_tail = self.seven_bag()
+            if type_ == 'n' and not temp:
+                new_head, new_tail = self._seven_bag()
                 self.tail.next = new_head
                 self.tail = new_tail
                 temp = new_head
         
-    def update_text(self):
+    def _update_text(self):
         font = pygame.font.SysFont('Calibri', 25, True, False)
         text = font.render('Score: ' + str(self.score), True, BLACK)
         
@@ -528,22 +610,22 @@ class Tetris:
                 for i in range(4):
                     for j in range(4):
                         if i * 4 + j in self.figure.image():
-                            self.field[i + self.figure.y][j + self.figure.x] = self.figure.type
+                            self.field[i + self.figure.y][j + self.figure.x] = self.figure.type_
                             self.field[i + self.shadow.y][j + self.shadow.x] = TetroType.SHADOW
                         
             finish_text = text_game_over if self.state == 'gameover' else text
             self.finish(finish_text, self.screen_size)
         pygame.display.flip()
         
-    def update_ui(self):
+    def _update_ui(self):
         self.screen.fill(WHITE)
         for item in [self.shadow, self.figure]:           
             if item is not None:
-                self.draw_tetro(item, self.x + self.zoom * item.x + 1, self.y + self.zoom * item.y + 1, False, self.zoom)          
-        self.draw_grid()
-        self.draw_small_grid('h')
-        self.draw_small_grid('n')
-        self.update_text()
+                self._draw_tetro(item, self.x + self.zoom * item.x + 1, self.y + self.zoom * item.y + 1, False, self.zoom)          
+        self._draw_grid()
+        self._draw_small_grid('h')
+        self._draw_small_grid('n')
+        self._update_text()
         
     def finish(self, text, pos):
         overlay = pygame.Surface(self.screen_size)
@@ -555,14 +637,36 @@ class Tetris:
         text_rect.center = (pos[0] / 2, pos[1] / 2)
         self.screen.blit(text, text_rect)
 
+class Tetris_AI:
+    def __init__(self, game: Tetris):
+        self.game = game
+    
+    def move(self, x: int):
+        cur_x = self.game.figure.cur_x
+        max_x = self.game.figure.max_x
+        x = min(x, max_x)
+        
+        if x == 0:
+            return [AI_Move.LONG_LEFT]
+        if x == max_x:
+            return [AI_Move.LONG_RIGHT]
+        
+        if x == 1:
+            return [AI_Move.LONG_LEFT, AI_Move.RIGHT]
+        if x == max_x - 1:
+            return [AI_Move.LONG_RIGHT, AI_Move.LEFT]
+        
+        distance = x - cur_x
+        move = AI_Move.LEFT if distance < 0 else AI_Move.RIGHT
+        return [move for i in range(distance)]
+    
+    
+    
 def main():
     pygame.init()
     game = Tetris()
-    game.update_ui()
     while game.running:
-        game.update_tetro()
-        game.game_step()
-        game.update_ui()
+        game.step()
     pygame.quit()
 
 if __name__ == '__main__':
