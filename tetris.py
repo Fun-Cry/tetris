@@ -3,6 +3,7 @@ from collections import deque
 import random
 from copy import deepcopy
 from enum import Enum
+import numpy as np
 
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
@@ -28,16 +29,12 @@ class control(Enum):
     HOLD = 7
     RESTART = 8
     
-class AI_Move(Enum):
-    LONG_LEFT = 1
-    LONG_RIGHT = 2
-    RIGHT_ROTATE = 3
-    LEFT_ROTATE = 4
-    LEFT = 5
-    RIGHT = 6
-    HARD_DROP = 7
-    SOFT_DROP = 8
-    HOLD = 9
+    LONG_LEFT = 9
+    LONG_RIGHT = 10
+    SOFT_DROP = 11
+    DROP_RIGHT = 12
+    DROP_LEFT = 13
+    
 
 class Tetromino:
     
@@ -62,6 +59,16 @@ class Tetromino:
         TetroType.SHADOW : GRAY
     }
     
+    type2idx = {
+        TetroType.I : 1,
+        TetroType.J : 2,
+        TetroType.L : 3,
+        TetroType.O : 4,
+        TetroType.S : 5,
+        TetroType.Z : 6,
+        TetroType.T : 7,
+    }
+    
     left_most_x = {
         TetroType.I : [0, 2, 0, 1],
         TetroType.O : [1],
@@ -84,17 +91,16 @@ class Tetromino:
         self.cur_x = 3
         self.max_x = 9
         self.next = None
-        self._update_cur_max()
-        
+        self.update_cur_max()
     
     def image(self):
         return self.rotations[self.type_][self.rotation]
     
     def rotate(self, rotation_type):
         self.rotation = (self.rotation + rotation_type) % len(self.rotations[self.type_])
-        self._update_cur_max()
+        self.update_cur_max()
         
-    def _update_cur_max(self):
+    def update_cur_max(self):
         type_ = self.type_ if self.type_ in [TetroType.I, TetroType.O] else TetroType.S
         self.cur_x =  self.x + self.left_most_x[type_][self.rotation]
         self.max_x = 10 - self.width[type_][self.rotation]
@@ -152,7 +158,7 @@ class Tetris:
     
     combo_table = [0, 1, 1, 2, 2, 3, 3, 4]
     
-    def __init__(self, display=True, AI_player=False):
+    def __init__(self, display=True):
         self.clock = pygame.time.Clock()
         self.used_held = False
         self.last_move = None
@@ -170,15 +176,10 @@ class Tetris:
         self.counter = 0
         self.screen = None
         self.display = display
-        self.player = None
-        self.step = self.game_step
         
         if self.display:
             self.screen = pygame.display.set_mode(self.screen_size)
             
-        if AI_player:
-            self.player = Tetris_AI()
-            self.step = self.game_step_AI
         self.start_time = {
             self.move_keys[control.DOWN]: pygame.time.get_ticks(),
             self.move_keys[control.LEFT]: pygame.time.get_ticks(),
@@ -358,6 +359,7 @@ class Tetris:
             temp = self.figure.x
             add = 1 if dir == 'right' else -1
             self.figure.x += add
+            self.figure.update_cur_max()
             if self._intersects():
                 self.figure.x = temp
         self._update_shadow()
@@ -449,18 +451,16 @@ class Tetris:
             self.state = 'timeup'
           
             
-    def game_step(self):
+    def step(self):
         self._update_tetro()
         self._update_counter()
-        keys = pygame.key.get_pressed()
+        keys = pygame.key.get_pressed() 
     
         for key in self.start_time.keys():
             if keys[key]:
                 current_time = pygame.time.get_ticks()
-                if current_time - self.start_time[key] > self.PRESSING_BOUND:
+                if self.start_time and current_time - self.start_time[key] > self.PRESSING_BOUND:
                     self.pressing[key] = True
-            else:
-                self.start_time[key] = pygame.time.get_ticks()
             
         if self.pressing[self.move_keys[control.DOWN]]:
             self._down()
@@ -470,6 +470,7 @@ class Tetris:
             self._move('right')            
             
         for event in pygame.event.get():
+            current_time = pygame.time.get_ticks()
             if event.type == pygame.QUIT:
                 self.running = False
             elif event.type == pygame.KEYDOWN:
@@ -485,10 +486,13 @@ class Tetris:
                         self._hard_drop()
                     if event.key == self.move_keys[control.DOWN]:
                         self._down()
+                        self.start_time[event.key] = current_time
                     if event.key == self.move_keys[control.LEFT]:
                         self._move('Left')
+                        self.start_time[event.key] = current_time
                     if event.key == self.move_keys[control.RIGHT]:
                         self._move('right')
+                        self.start_time[event.key] = current_time
                     if event.key == self.move_keys[control.HOLD]:
                         if not self.used_held:
                             self._hold()
@@ -499,46 +503,12 @@ class Tetris:
                 for key in self.pressing.keys():
                     if event.key == key:
                         self.pressing[key] = False
+                        self.start_time[key] = None
                         
         if self.display:
             self._update_ui()
-                    
             
-    def game_step_AI(self, move):
-        self._update_tetro()
-        self._update_counter()
-        for event in move:
-            cur_x = self.figure.cur_x
-            max_x = self.figure.max_x
-            if event == AI_Move.LONG_LEFT:
-                while cur_x != 0:
-                    self._move('left')
-                    cur_x -= 1
-            elif event == AI_Move.LONG_RIGHT:
-                while cur_x != max_x:
-                    self._move('right')
-                    cur_x += 1
-            elif event == AI_Move.LEFT_ROTATE:
-                self._rotate(-1)
-            elif event == AI_Move.RIGHT_ROTATE:
-                self._rotate(1)
-            elif event == AI_Move.LEFT:
-                self._move('left')
-            elif event == AI_Move.RIGHT:
-                self._move('right')
-            elif event == AI_Move.HARD_DROP:
-                self._hard_drop()
-            elif event == AI_Move.SOFT_DROP:
-                cur_y = self.figure.y
-                prev_y = self.height - 1
-                while cur_y != prev_y:
-                    prev_y = cur_y
-                    self._down()
-            elif event == AI_Move.HOLD:
-                self._hold()
-                
-        if self.display:
-            self._update_ui()
+        return pygame.time.get_ticks()
                 
     def _draw_grid(self):
         for i in range(2, self.height):
@@ -636,31 +606,146 @@ class Tetris:
         text_rect = text.get_rect()
         text_rect.center = (pos[0] / 2, pos[1] / 2)
         self.screen.blit(text, text_rect)
+        
+    def get_state(self):
+        while not self.figure:
+            self.step()
+        
+        cur_held_next = []
+        cur_held_next.append(Tetromino.type2idx[self.figure.type_])
+        if not self.held:
+            cur_held_next.append(0)
+        else:
+            cur_held_next.append(Tetromino.type2idx[self.held.type_])
+        
+        next_ = self.head
+        for i in range(5):
+            cur_held_next.append(Tetromino.type2idx[next_.type_])
+            next_ = next_.next
+        cur_held_next = np.array(cur_held_next)
+        
+        grid_info = []
+        for row in self.field:
+            temp = [0 if mino == 0 else 1 for mino in row]
+            grid_info.append(temp)
+        board = np.array(grid_info)
+        
+        return board, cur_held_next
 
 class Tetris_AI:
     def __init__(self, game: Tetris):
         self.game = game
+        self.event_queue = []
+        self.move_per_sec = 0.01
     
-    def move(self, x: int):
-        cur_x = self.game.figure.cur_x
-        max_x = self.game.figure.max_x
+    def _place_one_tetro(self, moves=list[control]):
+        start_time = self.game.step()
+        end_time = start_time
+        move_mapping = {
+            control.LONG_LEFT: control.LEFT,
+            control.LONG_RIGHT: control.RIGHT,
+            control.SOFT_DROP: control.DOWN,
+        }
+        for move in moves:
+            if move in [control.LONG_LEFT, control.LONG_RIGHT]:
+                key_ = self.game.move_keys[move_mapping[move]]
+                while end_time - start_time < self.game.PRESSING_BOUND:
+                    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=key_))
+                    end_time = self.game.step()
+                pygame.event.post(pygame.event.Event(pygame.KEYUP, key=key_))
+            elif move == control.SOFT_DROP:
+                prev_y = -1
+                while self.game.figure.y != prev_y:
+                    prev_y = self.game.figure.y
+                    key_ = self.game.move_keys[move_mapping[move]]
+                    pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=key_))
+                    end_time = self.game.step()
+            else:
+                key_ = self.game.move_keys[move]
+                pygame.event.post(pygame.event.Event(pygame.KEYDOWN, key=key_))
+                pygame.event.post(pygame.event.Event(pygame.KEYUP, key=key_))
+                
+            while self.game.step() - end_time < (1 / self.move_per_sec):
+                continue
+        return self.game.step()
+                    
+    def play(self):
+        
+        if len(self.event_queue) == 0:
+            self.game.step()
+            return
+        
+        for place_move in self.event_queue:
+            end_time = self._place_one_tetro(place_move)
+        
+        while self.game.step() - end_time < (1 / self.move_per_sec):
+            continue
+            
+        self.event_queue = []
+    
+    def move(self, rotation, x: int, down: control, dm: control, turn: int):
+        while not self.game.figure:
+            self.game.step()
+        
+        f_copy = deepcopy(self.game.figure)
+        for i in range(rotation):
+            f_copy.rotate(1)
+            
+        place_tetro_move = []
+        cur_x = f_copy.cur_x
+        max_x = f_copy.max_x
         x = min(x, max_x)
         
+        if rotation == 4:
+            place_tetro_move = [control.HOLD]
+            self.event_queue.append(place_tetro_move)
+            return
+        
+        if rotation == 0:
+            place_tetro_move += []
+        elif rotation == 1:
+            place_tetro_move += [control.RIGHT_ROTATE]
+        elif rotation == 2:
+            place_tetro_move += [control.RIGHT_ROTATE for i in range(2)]
+        elif rotation == 3:
+            place_tetro_move += [control.LEFT_ROTATE]
+        
+        # left and right
         if x == 0:
-            return [AI_Move.LONG_LEFT]
-        if x == max_x:
-            return [AI_Move.LONG_RIGHT]
+            place_tetro_move += [control.LONG_LEFT]
+        elif x == max_x:
+            place_tetro_move += [control.LONG_RIGHT]
+        elif x == 1:
+            place_tetro_move += [control.LONG_LEFT, control.RIGHT]
+        elif x == max_x - 1:
+            place_tetro_move += [control.LONG_RIGHT, control.LEFT]
+        else:
+            distance = x - cur_x
+            if distance < 0:
+                move = control.LEFT
+                distance *= -1
+            else:
+                move = control.RIGHT
+            place_tetro_move += [move for i in range(distance)]
         
-        if x == 1:
-            return [AI_Move.LONG_LEFT, AI_Move.RIGHT]
-        if x == max_x - 1:
-            return [AI_Move.LONG_RIGHT, AI_Move.LEFT]
         
-        distance = x - cur_x
-        move = AI_Move.LEFT if distance < 0 else AI_Move.RIGHT
-        return [move for i in range(distance)]
-    
-    
+        # drop
+        if down == control.HARD:
+            place_tetro_move += [control.HARD]
+            self.event_queue.append(place_tetro_move)
+            return
+        else:
+            place_tetro_move += [control.SOFT_DROP]
+            
+        place_tetro_move += [dm]
+            
+        if down == control.DROP_RIGHT:
+            place_tetro_move += [control.RIGHT_ROTATE for i in range(turn)]
+        elif down == control.DROP_LEFT:
+            place_tetro_move += [control.LEFT_ROTATE for i in range(turn)]
+
+        place_tetro_move += [control.HARD]
+        self.event_queue.append(place_tetro_move)
     
 def main():
     pygame.init()
