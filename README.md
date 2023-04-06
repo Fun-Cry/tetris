@@ -26,21 +26,21 @@ The game is controlled using the following keyboard controls:
 - **Move left**: Left arrow key
 - **Move right**: Right arrow key
 - **Move down**: Down arrow key
-- **Rotate clockwise**: Up arrow key
-- **Rotate counterclockwise**: Right Ctrl key
+- **Right Rotate**: Up arrow key
+- **Left Rotate**: Right Ctrl key
 - **Hold**: Right Shift key
 
 ## Machine Playable Interface
 
-Play tetris with external programs using tetris_ai.py
+Play Tetris with external programs using `sample.py`.
 
-1. Run `python tetris_ai.py`
+1. Run `python sample.py`.
 
-2. Append input to `movements.txt`
+2. Modify the `Your_Model` class and `fit` function to use your own model or program to interact with the game.
 
-### Input Format
+### Move Format
 
-Each line in `movements.txt` should consist of 5 variables, `R`, `X`, `D`, `M`, `T`, separated by space.
+The `post_move` function sends a move to the game. Each move should consist of 5 variables, `R`, `X`, `D`, `M`, `T`, separated by space.
 
 - `R`: Rotation. Specifies the orientation for the Tetrimino, with values in the range of \[0, 3\].
 - `X`: Horizontal placement. Determines where the current tetrimino should go, with values in the range of \[0, 9\].
@@ -52,7 +52,7 @@ Each line in `movements.txt` should consist of 5 variables, `R`, `X`, `D`, `M`, 
 - `M`: Movements after Soft Drop.
   - **0**: The current Tetrimino moves to the left-most position after Soft Drop.
   - **1**: The current Tetrimino moves to the right-most position after Soft Drop.
-  - **2**: The current Tetrimino stays at **x**
+  - **2**: The current Tetrimino stays at **x**.
 - `T`: Rotations after Soft Drop. Specifies how many rotations to perform.
 
 Example: `3 5 3 0 2`

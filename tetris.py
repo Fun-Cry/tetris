@@ -165,6 +165,7 @@ class Tetris:
         self.last_kick = None
         self.b2b = False
         self.combo = -1
+        self.prev_score = 0
         self.score = 0
         self.figure = None
         self.held = None
@@ -176,6 +177,7 @@ class Tetris:
         self.counter = 0
         self.screen = None
         self.display = display
+        self.reward = 0
         
         if self.display:
             self.screen = pygame.display.set_mode(self.screen_size)
@@ -297,6 +299,10 @@ class Tetris:
                     break
         if perfect:
             self.score += 10
+
+        self.reward = self.score - self.prev_score
+        self.prev_score = self.score
+
         
     def _freeze(self):
         for i in range(4):
@@ -471,9 +477,7 @@ class Tetris:
             
         for event in pygame.event.get():
             current_time = pygame.time.get_ticks()
-            if event.type == pygame.QUIT:
-                self.running = False
-            elif event.type == pygame.KEYDOWN:
+            if event.type == pygame.KEYDOWN:
                 if self.state in ['gameover', 'timeup'] :
                     if event.key == self.move_keys[control.RESTART]:
                         self.__init__(self.display)
@@ -504,6 +508,8 @@ class Tetris:
                     if event.key == key:
                         self.pressing[key] = False
                         self.start_time[key] = None
+            elif event.type == pygame.QUIT:
+                self.running = False
                         
         if self.display:
             self._update_ui()
@@ -631,6 +637,9 @@ class Tetris:
         board = np.array(grid_info)
         
         return board, cur_held_next
+    
+    def get_reward(self):
+        return self.reward
 
 class Tetris_AI:
     def __init__(self, game: Tetris):
@@ -638,7 +647,7 @@ class Tetris_AI:
         self.event_queue = []
         self.move_per_sec = 0.01
     
-    def _place_one_tetro(self, moves=list[control]):
+    def _place_one_tetro(self, moves):
         start_time = self.game.step()
         end_time = start_time
         move_mapping = {

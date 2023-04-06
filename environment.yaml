@@ -2,5 +2,8 @@ name: tetris
 channels:
   - defaults
 dependencies:
-  - python=3
-  - pygame
+  - python=3.10
+  - numpy
+  - pip
+  - pip:
+      - pygame
